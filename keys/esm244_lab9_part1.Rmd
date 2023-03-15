@@ -6,8 +6,8 @@ date: "1/31/2021"
 output: html_document
 ---
 
-```{r setup, include=TRUE, warning = FALSE, message = FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```{r setup, include=TRUE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(here)
 library(broom)
@@ -45,7 +45,7 @@ To reinforce skills for wrangling, visualizing, and forecasting with time series
 Read in the energy.csv data (use `here()`, since it's in the data subfolder).
 
 ```{r}
-energy <- read_csv(here("data", "energy.csv"))
+energy_df <- read_csv(here("data", "energy.csv"))
 ```
 
 Explore the `energy` object as it currently exists. Notice that there is a column `month` that contains the month name, and 4-digit year. Currently, however, R understands that as a character (instead of as a date). Our next step is to convert it into a time series data frame (a *tsibble*), in two steps:
@@ -56,9 +56,17 @@ Explore the `energy` object as it currently exists. Notice that there is a colum
 Here's what that looks like in a piped sequence: 
 
 ```{r}
-energy_ts <- energy %>% 
+energy_ts <- energy_df %>% 
   mutate(date = tsibble::yearmonth(month)) %>% 
   as_tsibble(key = NULL, index = date)
+
+### NOTE: if after running this, your `date` column DOES NOT MATCH
+### your `month` column, try coercing `month` from <chr> to <date> before
+### passing it to the tsibble::yearmonth() function...
+# energy_ts <- energy_df %>% 
+#   mutate(month_new = lubridate::ym(month)) %>%
+#   mutate(date = tsibble::yearmonth(month_new)) %>% 
+#   as_tsibble(key = NULL, index = date)
 ```
 
 Now that it's stored as a tsibble, we can start visualizing, exploring and working with it a bit easier. 
