@@ -1,0 +1,118 @@
+---
+title: "Lab 9 pt 1"
+author: "Max Settineri"
+date: "2023-03-15"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=TRUE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(here)
+library(broom)
+
+# Time series packages
+library(tsibble)
+library(feasts)
+library(fable)
+
+```
+
+## Read in energy data and convert to a tsibble
+
+Data from US EIA on US residential energy consumption from Jan 1973 - Oct 2017. Units in trillions of BTUs
+
+```{r}
+energy_df <- read_csv(here("data/energy.csv"))
+
+energy_ts <- energy_df %>% 
+  mutate(month_new = lubridate::ym(month)) %>% ## workaround to avoid weird tsibble error 
+  mutate(date = tsibble::yearmonth(month_new)) %>% 
+  as_tsibble(key = NULL, index = date)
+## head(energy_ts) # can check data type for each column
+```
+
+## Exploratort time series visualization
+
+```{r}
+ggplot(data = energy_ts, aes(x = date, y = res_total)) +
+  geom_line() +
+  labs(y = "Residential energy consumption \n (Trillion BTU)")
+```
+
+### season plot
+
+```{r}
+energy_ts %>% 
+  gg_season(y = res_total) +
+  theme_minimal() +
+  scale_color_viridis_c() +
+  labs(x = "month",
+       y = "residential energy consumption (trillion BTU)")
+```
+
+## subseries plot
+
+```{r}
+energy_ts %>% 
+  gg_subseries(y = res_total)
+
+```
+
+## Decomposition
+
+STL decomposition vs. classical decomposition. Classical has same seasonality for entire time series, but STL allows seasonality to change over time.
+```{r}
+## calculate STL decomposition
+dcmp <- energy_ts %>% 
+  model(STL(res_total ~ season()))
+### components(dcmp)
+
+## visualize
+components(dcmp) %>% 
+  autoplot() +
+  theme_minimal()
+```
+
+## Autocorrelation function (ACF)
+
+```{r}
+energy_ts %>% 
+  ACF(y = res_total) %>% 
+  autoplot() 
+```
+
+## Forecasting - Holt-winters exponential smoothing
+
+```{r}
+## create our model
+energy_fit <- energy_ts %>% 
+  model(ets = ETS(res_total ~ season('M'))) 
+
+## create forecast based on our model 10 years into the future
+energy_forecast <- energy_fit %>% 
+  forecast(h = "10 years")
+
+energy_forecast %>%
+  autoplot()
+```
+
+Now plot actual res_total values on top of the predicted values
+
+```{r}
+## append predicted values (and residuals) to the original energy data
+energy_predicted <- broom::augment(energy_fit)
+
+ggplot(data = energy_predicted) +
+  geom_line(aes(x = date, y = res_total), color = 'black') +
+  geom_line(aes(x = date, y = .fitted), color = 'red', alpha = 0.7)
+
+ggplot(data = energy_predicted, aes(x = .resid)) +
+  geom_histogram()
+
+ggplot(data = energy_predicted, aes(x = date, y = .resid)) +
+  geom_point()
+```
+
